@@ -29,6 +29,9 @@ impl RedoxLogger {
             file,
         })
     }
+    pub fn enable(self) -> Result<(), log::SetLoggerError> {
+        log::set_logger(Box::leak(Box::new(self)))
+    }
 }
 
 impl log::Log for RedoxLogger {
