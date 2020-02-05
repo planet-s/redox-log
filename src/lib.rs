@@ -12,7 +12,7 @@ pub struct RedoxLogger {
 }
 
 impl RedoxLogger {
-    pub fn new<A: AsRef<Path>, B: AsRef<Path>>(dir: &A, name: &B) -> Result<Self, io::Error> {
+    pub fn new<A: AsRef<Path> + ?Sized, B: AsRef<Path> + ?Sized>(dir: &A, name: &B) -> Result<Self, io::Error> {
         if fs::metadata(dir.as_ref()).err().map(|err| err.kind() == io::ErrorKind::NotFound).unwrap_or(false) {
             fs::create_dir_all(dir)?;
         }
