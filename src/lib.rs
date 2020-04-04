@@ -16,10 +16,18 @@ pub struct RedoxLogger {
 
 impl RedoxLogger {
     pub fn new<A: AsRef<Path>, B: AsRef<Path>, C: AsRef<Path>>(category: A, subcategory: B, logfile: C) -> Result<Self, io::Error> {
-        let mut path = PathBuf::from("logging:/");
+        let mut path = PathBuf::from("logging:");
         path.push(category);
         path.push(subcategory);
         path.push(logfile);
+        path.set_extension("log");
+
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+
         Ok(Self::new_from_file(Box::new(File::create(path)?))?)
     }
     pub fn new_from_file<W: Write + Seek + Send + 'static>(logfile: Box<W>) -> Result<Self, io::Error> {
