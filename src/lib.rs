@@ -7,11 +7,9 @@ use std::{io, fs};
 
 use log::{Metadata, Record};
 
-trait WriteAndSeek: Write + Seek + Send + 'static {}
-impl<T> WriteAndSeek for T where T: Write + Seek + Send + 'static {}
-
 pub struct RedoxLogger {
-    file: Mutex<BufWriter<Box<dyn WriteAndSeek>>>,
+    file: Mutex<BufWriter<Box<dyn Write + Send + 'static>>>,
+    stdout: Option<io::Stdout>,
 }
 
 impl RedoxLogger {
@@ -30,7 +28,7 @@ impl RedoxLogger {
 
         Ok(Self::new_from_file(Box::new(File::create(path)?))?)
     }
-    pub fn new_from_file<W: Write + Seek + Send + 'static>(logfile: Box<W>) -> Result<Self, io::Error> {
+    pub fn new_from_file<W: Write + Send + 'static>(logfile: Box<W>) -> Result<Self, io::Error> {
         let file = Mutex::new(BufWriter::new(logfile as Box<_>));
 
         // TODO: Log rotation: older log files from previous executions of the program should be
@@ -40,22 +38,20 @@ impl RedoxLogger {
 
         Ok(Self {
             file,
+            stdout: None,
         })
+    }
+    pub fn with_stdout_mirror(self) -> Self {
+        Self {
+            stdout: Some(io::stdout()),
+            .. self
+        }
     }
     pub fn enable(self) -> Result<(), log::SetLoggerError> {
         log::set_logger(Box::leak(Box::new(self)))
     }
-}
-
-impl log::Log for RedoxLogger {
-    fn enabled(&self, _metadata: &Metadata) -> bool {
-        // TODO: Configure the level filter using environment variables. Alternatively unless the throughput becomes too much, the
-        // redox version of journald (to be written) would handle that.
-        true
-    }
-    fn log(&self, record: &Record) {
+    fn write_record<W: Write>(record: &Record, writer: &mut W) -> io::Result<()> {
         // TODO: Log offloading to another thread or thread pool, maybe?
-        // TODO: Stdout/stderr mirroring, with colored text.
 
         let now_local = chrono::Local::now();
         let time = now_local.format("%Y-%m-%dT%H-%M-%S.%.3f+%:z");
@@ -67,7 +63,21 @@ impl log::Log for RedoxLogger {
 
         let level = record.level();
 
-        writeln!(self.file.lock().unwrap(), "{time:}[{mpath:}{cc:}{target:}] {level:} {msg:}", time=time, mpath=module_path_str, cc=coloncolon, target=target, level=level, msg=record.args()).unwrap();
+        writeln!(writer, "{time:}[{mpath:}{cc:}{target:}] {level:} {msg:}", time=time, mpath=module_path_str, cc=coloncolon, target=target, level=level, msg=record.args())
+    }
+}
+
+impl log::Log for RedoxLogger {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
+        // TODO: Configure the level filter using environment variables. Alternatively unless the throughput becomes too much, the
+        // redox version of journald (to be written) would handle that.
+        true
+    }
+    fn log(&self, record: &Record) {
+        let _ = Self::write_record(record, &mut *self.file.lock().unwrap());
+        if let Some(ref stdout) = self.stdout {
+            let _ = Self::write_record(record, &mut stdout.lock());
+        }
     }
     fn flush(&self) {
         let _ = self.file.lock().unwrap().flush();
