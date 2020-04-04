@@ -10,6 +10,7 @@ use log::{Metadata, Record};
 pub struct RedoxLogger {
     file: Mutex<BufWriter<Box<dyn Write + Send + 'static>>>,
     stdout: Option<io::Stdout>,
+    flush: bool,
 }
 
 impl RedoxLogger {
@@ -39,11 +40,18 @@ impl RedoxLogger {
         Ok(Self {
             file,
             stdout: None,
+            flush: true,
         })
     }
     pub fn with_stdout_mirror(self) -> Self {
         Self {
             stdout: Some(io::stdout()),
+            .. self
+        }
+    }
+    pub fn with_flush_after_write(self, flush: bool) -> Self {
+        Self {
+            flush,
             .. self
         }
     }
@@ -78,6 +86,7 @@ impl log::Log for RedoxLogger {
         if let Some(ref stdout) = self.stdout {
             let _ = Self::write_record(record, &mut stdout.lock());
         }
+        if self.flush { self.flush() }
     }
     fn flush(&self) {
         let _ = self.file.lock().unwrap().flush();
