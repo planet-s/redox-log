@@ -1,24 +1,29 @@
 use std::io::BufWriter;
 use std::io::prelude::*;
-use std::fs::{File, OpenOptions};
-use std::path::Path;
+use std::fs::File;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::{io, fs};
 
 use log::{Metadata, Record};
 
+trait WriteAndSeek: Write + Seek + Send + 'static {}
+impl<T> WriteAndSeek for T where T: Write + Seek + Send + 'static {}
+
 pub struct RedoxLogger {
-    file: Mutex<BufWriter<File>>,
+    file: Mutex<BufWriter<Box<dyn WriteAndSeek>>>,
 }
 
 impl RedoxLogger {
-    pub fn new<A: AsRef<Path> + ?Sized, B: AsRef<Path> + ?Sized>(dir: &A, name: &B) -> Result<Self, io::Error> {
-        if fs::metadata(dir.as_ref()).err().map(|err| err.kind() == io::ErrorKind::NotFound).unwrap_or(false) {
-            fs::create_dir_all(dir)?;
-        }
-
-        let path = dir.as_ref().join(name.as_ref());
-        let file = Mutex::new(BufWriter::new(OpenOptions::new().create_new(true).read(false).write(true).append(true).open(path)?));
+    pub fn new<A: AsRef<Path>, B: AsRef<Path>, C: AsRef<Path>>(category: A, subcategory: B, logfile: C) -> Result<Self, io::Error> {
+        let mut path = PathBuf::from("logging:/");
+        path.push(category);
+        path.push(subcategory);
+        path.push(logfile);
+        Ok(Self::new_from_file(Box::new(File::create(path)?))?)
+    }
+    pub fn new_from_file<W: Write + Seek + Send + 'static>(logfile: Box<W>) -> Result<Self, io::Error> {
+        let file = Mutex::new(BufWriter::new(logfile as Box<_>));
 
         // TODO: Log rotation: older log files from previous executions of the program should be
         // compressed, and stored elsewhere.
@@ -54,7 +59,7 @@ impl log::Log for RedoxLogger {
 
         let level = record.level();
 
-        let _ = writeln!(self.file.lock().unwrap(), "{time:}[{mpath:}{cc:}{target:}] {level:} {msg:}", time=time, mpath=module_path_str, cc=coloncolon, target=target, level=level, msg=record.args());
+        writeln!(self.file.lock().unwrap(), "{time:}[{mpath:}{cc:}{target:}] {level:} {msg:}", time=time, mpath=module_path_str, cc=coloncolon, target=target, level=level, msg=record.args()).unwrap();
     }
     fn flush(&self) {
         let _ = self.file.lock().unwrap().flush();
