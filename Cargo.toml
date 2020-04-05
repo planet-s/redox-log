@@ -10,3 +10,4 @@ license = "MIT"
 [dependencies]
 chrono = "0.4"
 log = "0.4"
+termion = "1.5"
