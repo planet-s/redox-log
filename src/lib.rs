@@ -4,6 +4,7 @@ use std::{io, fmt};
 
 #[cfg(any(target_os = "redox", rustdoc))]
 use std::{
+    ffi::OsStr,
     fs::{self, File},
     io::BufWriter,
     path::{Path, PathBuf},
