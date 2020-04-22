@@ -10,4 +10,5 @@ license = "MIT"
 [dependencies]
 chrono = "0.4"
 log = "0.4"
+smallvec = "1"
 termion = "1.5"
