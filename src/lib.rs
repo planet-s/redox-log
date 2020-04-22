@@ -1,9 +1,13 @@
-use std::io::BufWriter;
 use std::io::prelude::*;
-use std::fs::File;
-use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::{io, fmt, fs};
+use std::{io, fmt};
+
+#[cfg(any(target_os = "redox", rustdoc))]
+use std::{
+    fs::{self, File},
+    io::BufWriter,
+    path::{Path, PathBuf},
+};
 
 use smallvec::SmallVec;
 use log::{Metadata, Record};
