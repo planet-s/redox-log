@@ -55,9 +55,9 @@ impl OutputBuilder {
         C: AsRef<OsStr>,
     {
         let mut path = PathBuf::from("logging:");
-        path.push(category);
-        path.push(subcategory);
-        path.push(logfile);
+        path.push(category.as_ref());
+        path.push(subcategory.as_ref());
+        path.push(logfile.as_ref());
         path.set_extension("log");
 
         if let Some(parent) = path.parent() {
