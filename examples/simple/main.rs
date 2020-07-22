@@ -18,6 +18,7 @@ fn main() {
                 .with_ansi_escape_codes()
                 .build()
         )
+        .with_process_name("simple".into())
         .enable().expect("failed to enable"));
     info!("Example started");
     debug!("example started with log file: {}", "file.log");

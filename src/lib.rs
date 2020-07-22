@@ -121,6 +121,7 @@ pub struct RedoxLogger {
     max_filter: Option<log::LevelFilter>,
     max_level_in_use: Option<log::LevelFilter>,
     min_level_in_use: Option<log::LevelFilter>,
+    process_name: Option<String>,
 }
 
 impl RedoxLogger {
@@ -162,6 +163,10 @@ impl RedoxLogger {
         }
         self
     }
+    pub fn with_process_name(mut self, name: String) -> Self {
+        self.process_name = Some(name);
+        self
+    }
     pub fn enable(self) -> Result<&'static Self, log::SetLoggerError> {
         let leak = Box::leak(Box::new(self));
         log::set_logger(leak)?;
@@ -172,7 +177,7 @@ impl RedoxLogger {
         }
         Ok(leak)
     }
-    fn write_record<W: Write>(ansi: bool, record: &Record, writer: &mut W) -> io::Result<()> {
+    fn write_record<W: Write>(ansi: bool, record: &Record, process_name: Option<&str>, writer: &mut W) -> io::Result<()> {
         use termion::{color, style};
         use log::Level;
 
@@ -239,6 +244,8 @@ impl RedoxLogger {
             }
         }
 
+        let process_name = process_name.unwrap_or("");
+
         if ansi {
             writeln!(
                 writer,
@@ -247,7 +254,7 @@ impl RedoxLogger {
                 time=format_args!("{m:}{col:}{msg:}{rs:}{r:}", m=style::Italic, col=time_color, msg=time, r=reset, rs=style::Reset),
                 line=&LineFmt(line_number, true),
                 level=format_args!("{m:}{col:}{msg:}{rs:}{r:}", m=style::Bold, col=level_color, msg=level, r=reset, rs=style::Reset),
-                target=format_args!("{col:}{msg:}{r:}", col=target_color, msg=target, r=reset),
+                target=format_args!("{col:}{process_name:}@{target:}{r:}", col=target_color, process_name=process_name, target=target, r=reset),
                 msg=format_args!("{m:}{col:}{msg:}{rs:}{r:}", m=message_style, col=message_color, msg=message, r=reset, rs=style::Reset),
             )
         } else {
@@ -256,7 +263,7 @@ impl RedoxLogger {
                 "{time:} [{target:}{line:} {level:}] {msg:}",
                 time=time,
                 level=level,
-                target=target,
+                target=format_args!("{process_name}@{target}", process_name=process_name, target=target),
                 line=&LineFmt(line_number, false),
                 msg=message,
             )
@@ -276,7 +283,7 @@ impl log::Log for RedoxLogger {
                 _ => continue,
             };
             if record.metadata().level() <= output.filter {
-                let _ = Self::write_record(output.ansi, record, &mut *endpoint_guard);
+                let _ = Self::write_record(output.ansi, record, self.process_name.as_deref(), &mut *endpoint_guard);
             }
 
             if output.flush_on_newline {
