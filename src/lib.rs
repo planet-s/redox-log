@@ -1,13 +1,13 @@
 use std::io::prelude::*;
 use std::sync::Mutex;
 use std::{io, fmt};
+use std::ffi::OsStr;
+use std::fs::{self, File};
+use std::path::PathBuf;
 
 #[cfg(any(target_os = "redox", rustdoc))]
 use std::{
-    ffi::OsStr,
-    fs::{self, File},
     io::BufWriter,
-    path::{Path, PathBuf},
 };
 
 use smallvec::SmallVec;
@@ -47,13 +47,16 @@ pub struct OutputBuilder {
     ansi: Option<bool>,
 }
 impl OutputBuilder {
-    #[cfg(any(target_os = "redox", rustdoc))]
     pub fn in_redox_logging_scheme<A, B, C>(category: A, subcategory: B, logfile: C) -> Result<Self, io::Error>
     where
         A: AsRef<OsStr>,
         B: AsRef<OsStr>,
         C: AsRef<OsStr>,
     {
+        if !cfg!(target_os = "redox") {
+            return Ok(Self::with_endpoint(Vec::new()));
+        }
+
         let mut path = PathBuf::from("logging:");
         path.push(category.as_ref());
         path.push(subcategory.as_ref());
